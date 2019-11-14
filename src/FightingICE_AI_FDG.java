@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
@@ -16,6 +17,9 @@ import struct.FrameData;
 import struct.GameData;
 import struct.Key;
 import struct.MotionData;
+
+import dataloader.BalDataLoader;
+import dataloader.BalFitnessDataLoader;
 
 /**
  * MyAI based on Ishii Ryota's Highlight AI
@@ -75,12 +79,16 @@ public class FightingICE_AI_FDG implements AIInterface {
 	private Node rootNode;
 
 	private HighlightMCTS highlightMcts;
-	private          MCTS    normalMcts;
+	private MCTS normalMcts;
 	
 	Logger logger;
+	
+	// FDG Edition
+	private BalDataLoader balDataLoader;
+	private BalFitnessDataLoader balFitnessDataLoader;
 
 	// from PDA MIG version
-//	MotionRecorder motionRecorder;
+	//	MotionRecorder motionRecorder;
 	
 	@Override
 	public void close() {
@@ -96,7 +104,8 @@ public class FightingICE_AI_FDG implements AIInterface {
 	}
 
 	@Override
-	public int initialize(GameData gameData, boolean playerNumber) {
+	public int initialize(GameData gameData, boolean playerNumber)  {
+		
 		this.playerNumber = playerNumber;
 
 		this.key = new Key();
@@ -112,6 +121,9 @@ public class FightingICE_AI_FDG implements AIInterface {
 		this.myMotion = gameData.getMotionData(playerNumber);
 		this.oppMotion = gameData.getMotionData(!playerNumber);
 
+		this.balDataLoader = new BalDataLoader("uki/bal.txt");
+		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
+		
 		logger = new Logger(playerNumber);
 
 		// PDA
@@ -187,37 +199,23 @@ public class FightingICE_AI_FDG implements AIInterface {
 				bestActionNormal = normalMcts.runMcts();
 				bestActionHighlight = highlightMcts.runMcts();
 				
+				// FDG Edition
+				balFitnessDataLoader.updateData();
+				float leftPunchBF = balFitnessDataLoader.getBalFitnessById(6);
+				float rightPunchBF = balFitnessDataLoader.getBalFitnessById(7);
 				
-//				bestAction = bestActionNormal;
-				
-				if (true) {
+				if (leftPunchBF < rightPunchBF) {
 					// TODO: Change the expression above
 					bestAction = bestActionHighlight;
 				} else {
 					bestAction = bestActionNormal;
 				}
 				
-//				// PDA
-//				float point = (float) Math.random();
-//				Action PDAtrueAction = Action.DASH;
-//				if (point <= 0.1f) {
-//					PDAtrueAction = Action.DASH;				
-//				} else {
-//					PDAtrueAction = Action.FORWARD_WALK;
-//				}
-//				motionRecorder.runPdaForHealth();
-//				
-//				if (motionRecorder.decision == false) {				
-//					bestAction = mcts.runMcts(); // MCTSの実行
-//				} else {
-//					bestAction = PDAtrueAction; // PDA
-//				}
-		
 				if (ableAction(bestAction)) {
 					commandCenter.commandCall(bestAction.name()); // MCTSで選択された行動を実行する
 					logger.updateLog(rootNode.games);
 					if (FixParameter.DEBUG_MODE) {
-						if (true) {
+						if (leftPunchBF < rightPunchBF) {
 							// TODO: Change the expression above
 							highlightMcts.printNode(rootNode);
 						} else {
