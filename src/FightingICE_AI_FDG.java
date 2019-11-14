@@ -1,11 +1,13 @@
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
 import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
+import dataloader.BalDataLoader;
+import dataloader.BalFitnessDataLoader;
 import enumerate.Action;
 import enumerate.State;
+import ice_tts.TextToSpeech;
 import mcts.HighlightMCTS;
 import mcts.MCTS;
 import mcts.Node;
@@ -17,9 +19,6 @@ import struct.FrameData;
 import struct.GameData;
 import struct.Key;
 import struct.MotionData;
-
-import dataloader.BalDataLoader;
-import dataloader.BalFitnessDataLoader;
 
 /**
  * MyAI based on Ishii Ryota's Highlight AI
@@ -34,7 +33,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	private Key key;
 	private CommandCenter commandCenter;
 	private boolean playerNumber;
-
+	
 	/** 大本のFrameData */
 	private FrameData frameData;
 
@@ -86,6 +85,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	// FDG Edition
 	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
+	private TextToSpeech tts;
 
 	// from PDA MIG version
 	//	MotionRecorder motionRecorder;
@@ -123,16 +123,16 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 		this.balDataLoader = new BalDataLoader("uki/bal.txt");
 		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
+		this.tts = new TextToSpeech();
 		
 		logger = new Logger(playerNumber);
 
-		// PDA
-//		motionRecorder = new MotionRecorder();
-//		motionRecorder.initPdaForHealth();
-		
+
 		// Init
 		setPerformAction();
-
+		tts.setVoice("cmu-slt-hsmm");
+		tts.speak("Hello World, I am Lisa, and I will be your guide in the following games, nice to meet you!", 2.0f, false, true);
+		
 		return 0;
 	}
 

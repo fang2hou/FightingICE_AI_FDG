@@ -2,6 +2,9 @@
 <classpath>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/LibericaJDK-8"/>
 	<classpathentry kind="src" path="src"/>
-	<classpathentry exported="true" kind="lib" path="AIToolKit.jar"/>
+	<classpathentry kind="lib" path="lib/AIToolKit.jar"/>
+	<classpathentry kind="lib" path="lib/marytts-lang-en-5.2.jar"/>
+	<classpathentry kind="lib" path="lib/marytts-builder-5.2-jar-with-dependencies.jar"/>
+	<classpathentry kind="lib" path="lib/voice-cmu-slt-hsmm-5.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
