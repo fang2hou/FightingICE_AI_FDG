@@ -3,7 +3,7 @@ import java.util.LinkedList;
 
 import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
-import dataloader.BalDataLoader;
+//import dataloader.BalDataLoader;
 import dataloader.BalFitnessDataLoader;
 import enumerate.Action;
 import enumerate.State;
@@ -83,7 +83,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	Logger logger;
 	
 	// FDG Edition
-	private BalDataLoader balDataLoader;
+//	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
 	private TextToSpeech tts;
 
@@ -121,7 +121,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 		this.myMotion = gameData.getMotionData(playerNumber);
 		this.oppMotion = gameData.getMotionData(!playerNumber);
 
-		this.balDataLoader = new BalDataLoader("uki/bal.txt");
+//		this.balDataLoader = new BalDataLoader("uki/bal.txt");
 		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
 		this.tts = new TextToSpeech();
 		
@@ -201,8 +201,8 @@ public class FightingICE_AI_FDG implements AIInterface {
 				
 				// FDG Edition
 				balFitnessDataLoader.updateData();
-				float leftPunchBF = balFitnessDataLoader.getBalFitnessById(6);
-				float rightPunchBF = balFitnessDataLoader.getBalFitnessById(7);
+				float rightPunchBF = balFitnessDataLoader.getBalFitnessById(6);
+				float leftPunchBF = balFitnessDataLoader.getBalFitnessById(7);
 				
 				if (leftPunchBF < rightPunchBF) {
 					// TODO: Change the expression above
