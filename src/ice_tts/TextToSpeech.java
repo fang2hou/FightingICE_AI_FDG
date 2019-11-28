@@ -128,4 +128,8 @@ public class TextToSpeech {
 		marytts.setVoice(voice);
 	}
 	
+	public void setEffect(String effect) {
+		marytts.setAudioEffects(effect);
+	}
+	
 }

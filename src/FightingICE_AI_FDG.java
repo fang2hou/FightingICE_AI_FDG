@@ -10,6 +10,8 @@ import enumerate.Action;
 import enumerate.State;
 import ice_tts.SkillMap;
 import ice_tts.TTSICE;
+import marytts.signalproc.effects.JetPilotEffect;
+import marytts.signalproc.effects.VocalTractLinearScalerEffect;
 import mcts.HighlightMCTS;
 import mcts.MCTS;
 import mcts.Node;
@@ -145,8 +147,6 @@ public class FightingICE_AI_FDG implements AIInterface {
 		
 		tts = new TTSICE();
 		tts.start("Hello World, I am Lisa, and I will be your guide in the following games, nice to meet you!");
-		
-		
 		return 0;
 	}
 

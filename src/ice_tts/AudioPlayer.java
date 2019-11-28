@@ -17,7 +17,7 @@ import marytts.util.data.audio.MonoAudioInputStream;
 import marytts.util.data.audio.StereoAudioInputStream;
 
 /**
- * A single Thread Audio Player Once used it has to be initialised again
+ * A single Thread Audio Player Once used it has to be initialized again
  * 
  * @author GOXR3PLUS
  *
