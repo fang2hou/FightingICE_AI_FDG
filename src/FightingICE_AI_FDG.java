@@ -7,7 +7,7 @@ import aiinterface.CommandCenter;
 import dataloader.BalFitnessDataLoader;
 import enumerate.Action;
 import enumerate.State;
-import ice_tts.TextToSpeech;
+import ice_tts.TTSICE;
 import mcts.HighlightMCTS;
 import mcts.MCTS;
 import mcts.Node;
@@ -85,7 +85,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	// FDG Edition
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
-	private TextToSpeech tts;
+	private TTSICE tts;
 
 	// from PDA MIG version
 	//	MotionRecorder motionRecorder;
@@ -123,16 +123,17 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 //		this.balDataLoader = new BalDataLoader("uki/bal.txt");
 		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
-		this.tts = new TextToSpeech();
+		
 		
 		logger = new Logger(playerNumber);
 
 
 		// Init
 		setPerformAction();
-		tts.setVoice("cmu-slt-hsmm");
-		tts.speak("Hello World, I am Lisa, and I will be your guide in the following games, nice to meet you!", 2.0f, false, true);
 		
+		tts = new TTSICE();
+		tts.start("Hello World, I am Lisa, and I will be your guide in the following games, nice to meet you!");
+
 		return 0;
 	}
 
