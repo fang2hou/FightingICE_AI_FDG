@@ -66,7 +66,7 @@ public class TTSICE {
 		public void run() {
 			while (true) {
 				if (threadToGo.value==1) {
-	            	tts.speak(ttsText.value, gainValue, true, true);
+	            	tts.speak(ttsText.value, ttsGainValue.value, true, true);
 	            	threadToGo.value = 0;
 	            }
 				

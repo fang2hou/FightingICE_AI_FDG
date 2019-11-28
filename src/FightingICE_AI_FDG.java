@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.logging.Logger;
 
 import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
@@ -7,6 +8,7 @@ import aiinterface.CommandCenter;
 import dataloader.BalFitnessDataLoader;
 import enumerate.Action;
 import enumerate.State;
+import ice_tts.SkillMap;
 import ice_tts.TTSICE;
 import mcts.HighlightMCTS;
 import mcts.MCTS;
@@ -86,13 +88,22 @@ public class FightingICE_AI_FDG implements AIInterface {
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
 	private TTSICE tts;
-
+	
+	//TTS text generator dependencies	
+	boolean gameState[] = {true,false,false,false,false}; // initialize game state, 0 start, 1 early game, 2 mid game,3 near end game, 4 end game
+	String opponentCurrentMove;	
+	boolean canSpeak = true;
+	int ttsTimeCount;
+	
+	SkillMap ttsSkillMap;
+	
+	
 	// from PDA MIG version
 	//	MotionRecorder motionRecorder;
-	
+
 	@Override
 	public void close() {
-		logger.outputLog();
+//		logger.outputLog();
 	}
 
 	@Override
@@ -123,17 +134,19 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 //		this.balDataLoader = new BalDataLoader("uki/bal.txt");
 		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
-		
-		
-		logger = new Logger(playerNumber);
+
+//		logger = new Logger(playerNumber);
 
 
 		// Init
 		setPerformAction();
 		
+		ttsSkillMap = new SkillMap();
+		
 		tts = new TTSICE();
 		tts.start("Hello World, I am Lisa, and I will be your guide in the following games, nice to meet you!");
-
+		
+		
 		return 0;
 	}
 
@@ -141,6 +154,19 @@ public class FightingICE_AI_FDG implements AIInterface {
 	public void processing() {
 
 		if (canProcessing()) {
+//			new Thread(new Runnable() {
+//				public void run() {
+//					speakMethod();
+//				}
+//			}).start();
+			ttsTimeCount++;
+//			System.out.println(ttsTimeCount);
+			if (ttsTimeCount % 50 == 1) {
+				opponentCurrentMove = this.frameData.getCharacter(!playerNumber).getAction().name();
+				if (gameState[1] && opponentCurrentMove != "STAND") {
+					tts.speak(ttsSkillMap.generateSentenceByCode(opponentCurrentMove));	
+				}				
+			}
 
 			// フラグによって予測をするか選択
 			if (FixParameter.PREDICT_FLAG) {
@@ -150,8 +176,10 @@ public class FightingICE_AI_FDG implements AIInterface {
 				}
 			}
 
-			if (commandCenter.getSkillFlag()) {
-				key = commandCenter.getSkillKey();
+			if (commandCenter.getSkillFlag()) {	
+				
+					key = commandCenter.getSkillKey();		
+
 			} else {
 				key.empty();
 				commandCenter.skillCancel();
@@ -214,7 +242,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 				
 				if (ableAction(bestAction)) {
 					commandCenter.commandCall(bestAction.name()); // MCTSで選択された行動を実行する
-					logger.updateLog(rootNode.games);
+//					logger.updateLog(rootNode.games);
 					if (FixParameter.DEBUG_MODE) {
 						if (leftPunchBF < rightPunchBF) {
 							// TODO: Change the expression above
@@ -255,7 +283,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 	@Override
 	public void roundEnd(int x, int y, int frame) {
-
+		tts.speak("What a Play!");
 	}
 
 	/**
@@ -292,7 +320,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	public void setNormalMyAction() {
 		myNormalActions.clear();
 
-		int energy = myCharacter.getEnergy();
+//		int energy = myCharacter.getEnergy();
 
 		for (int i = 0; i < normalActionGround.length; i++) {
 			if (Math.abs(myMotion.get(Action.valueOf(normalActionGround[i].name()).ordinal())
@@ -322,7 +350,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	public void setHighlightMyAction() {
 		myHighlightActions.clear();
 
-		int energy = myCharacter.getEnergy();
+//		int energy = myCharacter.getEnergy();
 
 		for (int i = 0; i < highlightActionGround.length; i++) {
 			if (Math.abs(myMotion.get(Action.valueOf(highlightActionGround[i].name()).ordinal())
@@ -453,6 +481,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	@Override
 	public Key input() {
 		// TODO 自動生成されたメソッド・スタブ
+
 		return key;
 	}
 }
