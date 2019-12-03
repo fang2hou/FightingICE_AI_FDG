@@ -8,10 +8,6 @@ import aiinterface.CommandCenter;
 import dataloader.BalFitnessDataLoader;
 import enumerate.Action;
 import enumerate.State;
-import ice_tts.SkillMap;
-import ice_tts.TTSICE;
-import marytts.signalproc.effects.JetPilotEffect;
-import marytts.signalproc.effects.VocalTractLinearScalerEffect;
 import mcts.HighlightMCTS;
 import mcts.MCTS;
 import mcts.Node;
@@ -23,6 +19,8 @@ import struct.FrameData;
 import struct.GameData;
 import struct.Key;
 import struct.MotionData;
+import ice_agent.TTSBridge;
+import ice_agent.UKIBridge;
 
 /**
  * MyAI based on Ishii Ryota's Highlight AI
@@ -89,7 +87,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	// FDG Edition
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
-	private TTSICE tts;
+	private TTSBridge tts;
 	
 	//TTS text generator dependencies	
 	boolean gameState[] = {true,false,false,false,false}; // initialize game state, 0 start, 1 early game, 2 mid game,3 near end game, 4 end game
@@ -97,7 +95,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	boolean canSpeak = true;
 	int ttsTimeCount;
 	
-	SkillMap ttsSkillMap;
+	TTSSkillMap ttsSkillMap;
 	
 	
 	// from PDA MIG version
@@ -143,10 +141,10 @@ public class FightingICE_AI_FDG implements AIInterface {
 		// Init
 		setPerformAction();
 		
-		ttsSkillMap = new SkillMap();
+		ttsSkillMap = new TTSSkillMap();
 		
-		tts = new TTSICE();
-		tts.start("Hello World, I am Lisa, and I will be your guide in the following games, nice to meet you!");
+		tts = new TTSBridge();
+		tts.speak("Hello, I am Tony, and I will be your guide in the following games, nice to meet you!");
 		return 0;
 	}
 
