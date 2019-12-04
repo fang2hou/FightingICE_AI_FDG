@@ -103,6 +103,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 	@Override
 	public void close() {
+		tts.speak(ttsSkillMap.generateEndCommentary());
 //		logger.outputLog();
 	}
 
@@ -144,7 +145,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 		ttsSkillMap = new TTSSkillMap();
 		
 		tts = new TTSBridge();
-		tts.speak("Hello, I am Tony, and I will be your guide in the following games, nice to meet you!");
+		tts.speak(ttsSkillMap.generateBeginCommentary());
 		return 0;
 	}
 
@@ -156,15 +157,17 @@ public class FightingICE_AI_FDG implements AIInterface {
 //				public void run() {
 //					speakMethod();
 //				}
-//			}).start();
-			ttsTimeCount++;
+//			}).start()
 //			System.out.println(ttsTimeCount);
-			if (ttsTimeCount % 50 == 1) {
-				opponentCurrentMove = this.frameData.getCharacter(!playerNumber).getAction().name();
-				if (gameState[1] && opponentCurrentMove != "STAND") {
-					tts.speak(ttsSkillMap.generateSentenceByCode(opponentCurrentMove));	
-				}				
-			}
+			opponentCurrentMove = this.frameData.getCharacter(!playerNumber).getAction().name();
+			if (opponentCurrentMove != "STAND") {
+				tts.gain = 2;
+				tts.rate = 2;
+				boolean isPlayed = tts.speak(ttsSkillMap.generateCommentaryByCode(opponentCurrentMove));
+//				if (!isPlayed) {
+//					System.out.println(ttsSkillMap.generateCommentaryByCode(opponentCurrentMove) + "[FAILED]");
+//				}
+			}				
 
 			// フラグによって予測をするか選択
 			if (FixParameter.PREDICT_FLAG) {
