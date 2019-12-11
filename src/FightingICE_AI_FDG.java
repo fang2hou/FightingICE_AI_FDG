@@ -107,12 +107,12 @@ public class FightingICE_AI_FDG implements AIInterface {
 	private void setTTSParameters() {
 		if (gameState == 0) {
 			tts.gain = 10.0f;
-			tts.rate = 1.0f / 2.0f;
+			tts.rate = 1.0f;
 			tts.pitch = 2.0f;
 			gameState = 1;
 		} else if (gameState == 1) {
 			tts.gain = 1.0f;
-			tts.rate = 1.25f / 2.0f;
+			tts.rate = 1.25f;
 			if (opponentCurrentMove.contains("Default")) {				
 				tts.pitch = -4.0f;				
 			} else {
