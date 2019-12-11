@@ -1,9 +1,8 @@
 package mcts;
 
 import java.security.SecureRandom;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Random;
 
@@ -11,6 +10,8 @@ import enumerate.Action;
 import parameter.FixParameter;
 import simulator.Simulator;
 import struct.FrameData;
+import struct.MotionData;
+
 
 public class HighlightMCTS {
 
@@ -48,19 +49,15 @@ public class HighlightMCTS {
 	/** 選択できる相手の全Action */
 	private LinkedList<Action> availableOppActions;
 
-	/** 視覚的効果の高い行動 */
-	public static HashSet<Action> effortActions = new HashSet<Action> (Arrays.asList(Action.STAND_D_DF_FC, Action.STAND_F_D_DFB,
-			Action.STAND_D_DB_BB, Action.STAND_D_DF_FB)); // 必殺技,昇竜拳,スライディング,強波動拳の順;
-
-	public static double[] damageList = new double[] {1.0, 0.5, 0.25, 0.125};
-
 	/** フレームデータ(キャラ情報等) */
 	private FrameData frameData;
+
+	private ArrayList<MotionData>  myMotion;
 
 	private double alpha = 0.5;
 
 	public HighlightMCTS(Node node, FrameData fd, Simulator sim, int myHp, int oppHp, LinkedList<Action> myActions,
-			LinkedList<Action> oppActions, boolean p) {
+			LinkedList<Action> oppActions, boolean p, ArrayList<MotionData> mData) {
 
 		rootNode = node; // ルートノードの情報を格納
 		frameData = fd;
@@ -73,6 +70,8 @@ public class HighlightMCTS {
 
 		mAction = new LinkedList<Action>();
 		oppAction = new LinkedList<Action>();
+
+		myMotion = mData;
 
 //		mDepth = 0;
 
@@ -138,11 +137,12 @@ public class HighlightMCTS {
 			}
 		}
 		// シミュレーションを実行
-		FrameData nFrameData = simulator.simulate(frameData, playerNumber, mAction, oppAction, 1);
+		//FrameData nFrameData = simulator.simulate(frameData, playerNumber, mAction, oppAction, 60);
 
-		mAction.clear();
-		oppAction.clear();
-		for (int i = 0; i < 5; i++) {
+		//mAction.clear();
+		//oppAction.clear();
+
+		for (int i = 0; i < 5-selectedMyActions.size(); i++) {
 			mAction.add(availableMyActions.get(rnd.nextInt(availableMyActions.size())));
 		}
 		if (FixParameter.PREDICT_FLAG) {
@@ -162,8 +162,8 @@ public class HighlightMCTS {
 		}
 
 		// シミュレーションを実行
-		nFrameData = simulator.simulate(nFrameData, playerNumber, mAction, oppAction, FixParameter.SIMULATION_TIME);
-		return getScore(nFrameData);
+		FrameData nFrameData = simulator.simulate(this.frameData, playerNumber, mAction, oppAction, FixParameter.SIMULATION_TIME);
+		return getScore(nFrameData, selectedMyActions);
 	}
 
 	/**
@@ -342,13 +342,13 @@ public class HighlightMCTS {
 	 *            フレームデータ(これにhpとかの情報が入っている)
 	 * @return 評価値
 	 */
-	public double getScore(FrameData fd) {
+	public double getScore(FrameData fd, LinkedList<Action> sAct) {
 		if (FixParameter.MIX_FLAG) {
 			return (1 - alpha) * evalStrength(fd) + alpha * evalTanh(fd);
 		} else if (FixParameter.STRONG_FLAG) {
 			return evalDifferenceHP(fd);
 		} else if (FixParameter.HIGHLIGHT_FLAG){
-			return evalHighlight(fd);
+			return evalHighlight(fd, sAct);
 		}
 		else {
 			return evalTanh(fd);
@@ -382,29 +382,33 @@ public class HighlightMCTS {
 				(double) (oppOriginalHp - frameData.getCharacter(!playerNumber).getHp()) / FixParameter.TANH_SCALE);
 	}
 
-	private double evalHighlight(FrameData frameData){
+	private double evalHighlight(FrameData frameData, LinkedList<Action> sAct){
 		double normalHp = 0.0;
 		double strength = 0.0;
 		double actRank = 0.0;
 		double distance = 0.0;
+		Action fAct = sAct.getFirst();
+		int maxEng = Math.abs(myMotion.get(Action.STAND_D_DF_FC.ordinal()).getAttackStartAddEnergy());
 
 		// P1
 		if(playerNumber){
-			normalHp = (double)(oppOriginalHp - frameData.getCharacter(false).getHp())/120.0;
+			normalHp = (double)(oppOriginalHp - frameData.getCharacter(false).getHp())/myMotion.get(Action.STAND_D_DF_FC.ordinal()).getAttackHitDamage();
 			strength = (double)(frameData.getFramesNumber()/3600.0)*normalHp;
 
-			int startEng = frameData.getCharacter(true).getAttack().getStartAddEnergy();
-			if(frameData.getCharacter(true).getEnergy() < 100){
+			int startEng = Math.abs(myMotion.get(Action.valueOf(fAct.name()).ordinal()).getAttackStartAddEnergy());
+			int damage = myMotion.get(Action.valueOf(fAct.name()).ordinal()).getAttackHitDamage();
+
+			if(frameData.getCharacter(true).getEnergy() < maxEng){
 				if(startEng == 0){
 					actRank = 1.0;
 				}else{
 					actRank = 0.0;
 				}
 			}else{
-				if(startEng == 0){
+				if(startEng == 0 || damage <= 30){
 					actRank = 0.0;
 				}else{
-					actRank = -(double)(startEng/100.0);
+					actRank = (double)damage/startEng;
 				}
 			}
 
@@ -412,27 +416,29 @@ public class HighlightMCTS {
 
 			// P2
 		} else {
-			normalHp = (double)(oppOriginalHp - frameData.getCharacter(true).getHp())/120.0;
-			strength = (frameData.getFramesNumber()/3600.0)*normalHp;
+			normalHp = (double)(oppOriginalHp - frameData.getCharacter(true).getHp())/myMotion.get(Action.STAND_D_DF_FC.ordinal()).getAttackHitDamage();
+			strength = (double)(frameData.getFramesNumber()/3600.0)*normalHp;
 
-			int startEng = frameData.getCharacter(false).getAttack().getStartAddEnergy();
-			if(frameData.getCharacter(false).getEnergy() < 100){
+			int startEng = Math.abs(myMotion.get(Action.valueOf(fAct.name()).ordinal()).getAttackStartAddEnergy());
+			int damage = myMotion.get(Action.valueOf(fAct.name()).ordinal()).getAttackHitDamage();
+			if(frameData.getCharacter(false).getEnergy() < maxEng){
 				if(startEng == 0){
 					actRank = 1.0;
 				}else{
 					actRank = 0.0;
 				}
 			}else{
-				if(startEng == 0){
+				if(startEng == 0 || damage <= 30){
 					actRank = 0.0;
 				}else{
-					actRank = -(double)(startEng/100.0);
+					actRank = (double)damage/startEng;
 				}
 			}
 
 			distance = 1.0 - ((double)Math.abs(480.0 - frameData.getCharacter(false).getCenterX())/480.0);
 
 		}
+
 		return (strength+actRank+distance)/3.0;
 
 	}
