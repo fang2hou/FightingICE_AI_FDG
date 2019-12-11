@@ -79,6 +79,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	private ArrayList<MotionData> myMotion;
 
 	private ArrayList<MotionData> oppMotion;
+
 	
 	private Node rootNode;
 
@@ -95,11 +96,12 @@ public class FightingICE_AI_FDG implements AIInterface {
 	boolean healthCommentaryFlag = false;
 	
 	//TTS text generator	
-	int gameState = 0; // initialize game state, 0 start, 1 early game, 2 mid game, 3 near end game, 4 end game, 5 specific mode
+	int gameState; // initialize game state, 0 start, 1 early game, 2 mid game, 3 near end game, 4 end game, 5 specific mode
+	int AIState; // 0 highlight, 1 mcts, 2 harmless
 	String opponentCurrentMove;	
 	String opponentPreviousMove;
 	private LinkedList<String> tempOpponentActionList;	
-	boolean isSpeaking = false;
+	boolean isSpeaking;//check if it's speaking
 	int ttsTimeCount;
 	
 	TTSSkillMap ttsSkillMap;
@@ -138,20 +140,24 @@ public class FightingICE_AI_FDG implements AIInterface {
 	}
 	
 	private void getOpponentCurrentMoveInformation() {
-		opponentPreviousMove = 
-		opponentCurrentMove = ttsSkillMap.getActionRealName(this.frameData.getCharacter(!playerNumber).getAction().name());
-		if (isSpeaking) {
-			if (!opponentCurrentMove.contains("Default")){		
-				tempOpponentActionList.add(opponentCurrentMove);		
-			}
-		} else {
-			if (tempOpponentActionList.size() != 0) {
-				opponentCurrentMove = tempOpponentActionList.get(ttsSkillMap.getRandomNumber(tempOpponentActionList.size()));
-				tempOpponentActionList.clear();
-			}
+		//TODO
+//		if (opponentPreviousMove != ttsSkillMap.getActionRealName(this.frameData.getCharacter(!playerNumber).getAction().name())) {
+//			opponentPreviousMove = opponentCurrentMove;
+			opponentCurrentMove = ttsSkillMap.getActionRealName(this.frameData.getCharacter(!playerNumber).getAction().name());
+			if (isSpeaking) {
+				if (!opponentCurrentMove.contains("Default")){		
+					tempOpponentActionList.add(opponentCurrentMove);		
+				}
+			} else {
+				if (tempOpponentActionList.size() != 0) {
+					opponentCurrentMove = tempOpponentActionList.get(ttsSkillMap.getRandomNumber(tempOpponentActionList.size()));
+					tempOpponentActionList.clear();
+				}
+			}			
 		}
 
-	}
+
+//	}
 	
 	// from PDA MIG version
 	//	MotionRecorder motionRecorder;
@@ -197,7 +203,9 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 		// Init
 		setPerformAction();
-		
+		gameState = 0;
+		AIState = 0;
+		isSpeaking = false;
 		ttsSkillMap = new TTSSkillMap();
 		
 		tts = new TTSBridge();
@@ -263,37 +271,41 @@ public class FightingICE_AI_FDG implements AIInterface {
 					Prediction.getInstance().getInfomation(); // 回数順でソート
 				}
 
+				
+				// FDG Version TODO
 				// MCTSによる行動決定
-				Action bestAction = Action.STAND;
-				Action bestActionHighlight = Action.STAND_D_DB_BA;
-				Action bestActionNormal = Action.STAND_D_DB_BA;
-				Action bestActionHarmless = Action.STAND;
-				
-				if (rootNode == null) {
-					// MCTSの下準備を行う
-					normalMctsPrepare();
-					highlightMctsPrepare();
-					harmlessMctsPrepare();
-				}
-				bestActionNormal = normalMcts.runMcts();
-				bestActionHighlight = highlightMcts.runMcts();
-				bestActionHarmless = harmlessMcts.runMcts();
-				
-				// FDG Edition
+				Action bestAction = Action.STAND_D_DB_BA;
+
+
 				balFitnessDataLoader.updateData();
 				float rightPunchBF = balFitnessDataLoader.getBalFitnessById(6);
 				float leftPunchBF = balFitnessDataLoader.getBalFitnessById(7);
 				int probabilityNumber = ttsSkillMap.getRandomNumber(100);
-				if (leftPunchBF < rightPunchBF) {
-					// TODO: Change the expression above
-					bestAction = bestActionHighlight;
-				} else if (leftPunchBF > rightPunchBF){
-					bestAction = bestActionNormal;
-				} else {
-					bestAction = bestActionHarmless;					
+				
+				if (rootNode == null) {
+					// MCTSの下準備を行う
+					if (AIState == 0) {
+						highlightMctsPrepare();
+					} else if (AIState == 1) {
+						normalMctsPrepare();
+					} else if (AIState == 2) {
+						harmlessMctsPrepare();
+					} else {
+						
+					}
 				}
 				
+				if (AIState == 0) {
+					bestAction = highlightMcts.runMcts();
+				} else if (AIState == 1) {
+					bestAction = normalMcts.runMcts();
+				} else if (AIState == 2) {
+					bestAction = harmlessMcts.runMcts();
+				} else {
+					
+				}
 
+				
 				
 				if (ableAction(bestAction)) {
 					commandCenter.commandCall(bestAction.name()); // MCTSで選択された行動を実行する
@@ -367,7 +379,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 		rootNode = new Node(null);
 		FrameData simFrameData = new FrameData(simulatorAheadFrameData);
 		highlightMcts = new HighlightMCTS(rootNode, simFrameData, simulator, myCharacter.getHp(), oppCharacter.getHp(),
-				myHighlightActions, oppHighlightActions, playerNumber);
+				myHighlightActions, oppHighlightActions, playerNumber, myMotion);
 
 		highlightMcts.createNode(rootNode);
 
@@ -420,35 +432,30 @@ public class FightingICE_AI_FDG implements AIInterface {
 	public void setHighlightMyAction() {
 		myHighlightActions.clear();
 
-//		int energy = myCharacter.getEnergy();
+		int energy = myCharacter.getEnergy();
 
-		for (int i = 0; i < highlightActionGround.length; i++) {
-			if (Math.abs(myMotion.get(Action.valueOf(highlightActionGround[i].name()).ordinal())
-					.getAttackStartAddEnergy()) <= 0) {
-				myHighlightActions.add(highlightActionGround[i]);
+		if (myCharacter.getState() == State.AIR) {
+			for (int i = 0; i < highlightActionAir.length; i++) {
+				if (Math.abs(myMotion.get(Action.valueOf(highlightActionAir[i].name()).ordinal())
+						.getAttackStartAddEnergy()) <= energy) {
+					myHighlightActions.add(highlightActionAir[i]);
+				}
+			}
+		} else {
+			if (Math.abs(
+				myMotion.get(Action.valueOf(highlightSpSkill.name()).ordinal()).getAttackStartAddEnergy()) <= energy) {
+				myHighlightActions.add(highlightSpSkill);
+			}
+
+			for (int i = 0; i < highlightActionGround.length; i++) {
+				if (Math.abs(myMotion.get(Action.valueOf(highlightActionGround[i].name()).ordinal())
+						.getAttackStartAddEnergy()) <= energy) {
+					myHighlightActions.add(highlightActionGround[i]);
+				}
 			}
 		}
-		
-//		if (myCharacter.getState() == State.AIR) {
-//			for (int i = 0; i < highlightActionAir.length; i++) {
-//				if (Math.abs(myMotion.get(Action.valueOf(highlightActionAir[i].name()).ordinal())
-//						.getAttackStartAddEnergy()) <= energy) {
-//					myHighlightActions.add(highlightActionAir[i]);
-//				}
-//			}
-//		} else {
-//			if (Math.abs(myMotion.get(Action.valueOf(highlightSpSkill.name()).ordinal()).getAttackStartAddEnergy()) <= energy) {
-//				myHighlightActions.add(highlightSpSkill);
-//			}
-//
-//			for (int i = 0; i < highlightActionGround.length; i++) {
-//				if (Math.abs(myMotion.get(Action.valueOf(highlightActionGround[i].name()).ordinal())
-//						.getAttackStartAddEnergy()) <= 0) {
-//					myHighlightActions.add(highlightActionGround[i]);
-//				}
-//			}
-//		}
 
+	
 	}
 
 	public void setHarmlessMyAction() {
@@ -544,7 +551,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 				Action.AIR_F_D_DFA, Action.AIR_F_D_DFB, Action.AIR_D_DB_BA, Action.AIR_D_DB_BB };
 		
 		highlightActionGround = new Action[] { Action.STAND_D_DB_BA, Action.BACK_STEP, Action.FORWARD_WALK, Action.DASH,
-				Action.STAND_GUARD, Action.CROUCH_GUARD, Action.THROW_A, // Action.JUMP, Action.FOR_JUMP, Action.BACK_JUMP,
+				Action.JUMP, Action.STAND_GUARD, Action.CROUCH_GUARD, Action.THROW_A,
 				Action.THROW_B, Action.STAND_A, Action.STAND_B, Action.CROUCH_A, Action.CROUCH_B, Action.STAND_FA,
 				Action.STAND_FB, Action.CROUCH_FA, Action.CROUCH_FB, Action.STAND_D_DF_FA, Action.STAND_D_DF_FB,
 				Action.STAND_F_D_DFA, Action.STAND_F_D_DFB, Action.STAND_D_DB_BB };
@@ -556,7 +563,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 				Action.AIR_F_D_DFA, Action.AIR_F_D_DFB, Action.AIR_D_DB_BA, Action.AIR_D_DB_BB };
 		
 		normalActionGround = new Action[] { Action.STAND_D_DB_BA, Action.BACK_STEP, Action.FORWARD_WALK, Action.DASH,
-				Action.STAND_GUARD, Action.CROUCH_GUARD, Action.THROW_A, 
+				Action.JUMP, Action.STAND_GUARD, Action.CROUCH_GUARD, Action.THROW_A,
 				Action.THROW_B, Action.STAND_A, Action.STAND_B, Action.CROUCH_A, Action.CROUCH_B, Action.STAND_FA,
 				Action.STAND_FB, Action.CROUCH_FA, Action.CROUCH_FB, Action.STAND_D_DF_FA, Action.STAND_D_DF_FB,
 				Action.STAND_F_D_DFA, Action.STAND_F_D_DFB, Action.STAND_D_DB_BB };
@@ -570,7 +577,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 		
 		harmlessActionAir = new Action[] {};
 		
-		harmlessActionGround = new Action[] {Action.FORWARD_WALK, Action.DASH,
+		harmlessActionGround = new Action[] {Action.FORWARD_WALK, Action.DASH
 				};
 	}
 
