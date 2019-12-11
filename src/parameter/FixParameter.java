@@ -35,7 +35,7 @@ public class FixParameter {
 	/////////// 各提案手法を組み込むかどうかを管理するフラグ//////////////
 
 	/** 通常MCTSか手加減MCTSかを管理するフラグ */
-	public static final boolean STRONG_FLAG = false;
+	public static final boolean STRONG_FLAG = true;
 
 	/** 自然さを考慮するかどうかを管理するフラグ */
 	public static final boolean MIX_FLAG = false;

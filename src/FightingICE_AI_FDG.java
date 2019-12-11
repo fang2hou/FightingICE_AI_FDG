@@ -45,6 +45,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 	/** 自分が行える行動全て */
 	private LinkedList<Action> myNormalActions;
 	private LinkedList<Action> myHighlightActions;
+	private LinkedList<Action> myHarmlessActions;
 
 	/** 相手が行える行動全て */
 	private LinkedList<Action> oppNormalActions;
@@ -58,9 +59,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 	private Action[] normalActionAir;
 	private Action[] highlightActionAir;
+	private Action[] harmlessActionAir;
 	
 	private Action[] normalActionGround;
 	private Action[] highlightActionGround;
+	private Action[] harmlessActionGround;
 
 	private Action highlightSpSkill;
 
@@ -81,6 +84,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 	private HighlightMCTS highlightMcts;
 	private MCTS normalMcts;
+	private MCTS harmlessMcts;
 	
 	Logger logger;
 	
@@ -88,22 +92,73 @@ public class FightingICE_AI_FDG implements AIInterface {
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
 	private TTSBridge tts;
+	boolean healthCommentaryFlag = false;
 	
-	//TTS text generator dependencies	
-	boolean gameState[] = {true,false,false,false,false}; // initialize game state, 0 start, 1 early game, 2 mid game,3 near end game, 4 end game
+	//TTS text generator	
+	int gameState = 0; // initialize game state, 0 start, 1 early game, 2 mid game, 3 near end game, 4 end game, 5 specific mode
 	String opponentCurrentMove;	
-	boolean canSpeak = true;
+	String opponentPreviousMove;
+	private LinkedList<String> tempOpponentActionList;	
+	boolean isSpeaking = false;
 	int ttsTimeCount;
 	
 	TTSSkillMap ttsSkillMap;
 	
+	private void setTTSParameters() {
+		if (gameState == 0) {
+			tts.gain = 10.0f;
+			tts.rate = 1.0f / 2.0f;
+			tts.pitch = 2.0f;
+			gameState = 1;
+		} else if (gameState == 1) {
+			tts.gain = 1.0f;
+			tts.rate = 1.25f / 2.0f;
+			if (opponentCurrentMove.contains("Default")) {				
+				tts.pitch = -4.0f;				
+			} else {
+				tts.pitch = 0f;		
+			}
+
+		} else if (gameState == 2) {
+			tts.gain = 1.0f;
+			tts.rate = 1.25f;			
+		} else if (gameState == 3) {
+			tts.gain = 1.5f;
+			tts.rate = 1.25f;			
+		} else if (gameState == 4) {
+			tts.gain = 2.0f;
+			tts.rate = 1.0f;			
+		} else if (gameState == 5) {
+			tts.gain = 1.0f;
+			tts.rate = 1.0f;
+			tts.pitch = 2.0f;			
+		} else {
+			
+		}
+	}
+	
+	private void getOpponentCurrentMoveInformation() {
+		opponentPreviousMove = 
+		opponentCurrentMove = ttsSkillMap.getActionRealName(this.frameData.getCharacter(!playerNumber).getAction().name());
+		if (isSpeaking) {
+			if (!opponentCurrentMove.contains("Default")){		
+				tempOpponentActionList.add(opponentCurrentMove);		
+			}
+		} else {
+			if (tempOpponentActionList.size() != 0) {
+				opponentCurrentMove = tempOpponentActionList.get(ttsSkillMap.getRandomNumber(tempOpponentActionList.size()));
+				tempOpponentActionList.clear();
+			}
+		}
+
+	}
 	
 	// from PDA MIG version
 	//	MotionRecorder motionRecorder;
 
 	@Override
 	public void close() {
-		tts.speak(ttsSkillMap.generateEndCommentary());
+		tts.speak(ttsSkillMap.generateEndCommentary(),true);
 //		logger.outputLog();
 	}
 
@@ -126,16 +181,17 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 		this.myNormalActions = new LinkedList<Action>();
 		this.myHighlightActions = new LinkedList<Action>();
+		this.myHarmlessActions = new LinkedList<Action>();
 		this.oppNormalActions = new LinkedList<Action>();
 		this.oppHighlightActions = new LinkedList<Action>();
 
 		this.simulator = gameData.getSimulator();
 		this.myMotion = gameData.getMotionData(playerNumber);
 		this.oppMotion = gameData.getMotionData(!playerNumber);
-
+		this.opponentPreviousMove = "Default";
 //		this.balDataLoader = new BalDataLoader("uki/bal.txt");
 		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
-
+		this.tempOpponentActionList = new LinkedList<String>();
 //		logger = new Logger(playerNumber);
 
 
@@ -145,6 +201,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 		ttsSkillMap = new TTSSkillMap();
 		
 		tts = new TTSBridge();
+		setTTSParameters();
 		tts.speak(ttsSkillMap.generateBeginCommentary());
 		return 0;
 	}
@@ -153,21 +210,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 	public void processing() {
 
 		if (canProcessing()) {
-//			new Thread(new Runnable() {
-//				public void run() {
-//					speakMethod();
-//				}
-//			}).start()
-//			System.out.println(ttsTimeCount);
-			opponentCurrentMove = this.frameData.getCharacter(!playerNumber).getAction().name();
-			if (opponentCurrentMove != "STAND") {
-				tts.gain = 2;
-				tts.rate = 2;
-				boolean isPlayed = tts.speak(ttsSkillMap.generateCommentaryByCode(opponentCurrentMove));
-//				if (!isPlayed) {
-//					System.out.println(ttsSkillMap.generateCommentaryByCode(opponentCurrentMove) + "[FAILED]");
-//				}
-			}				
+			getOpponentCurrentMoveInformation();
+			setTTSParameters();
+			isSpeaking = tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));			
+			//System.out.println(isSpeaking);
+	
 
 			// フラグによって予測をするか選択
 			if (FixParameter.PREDICT_FLAG) {
@@ -217,29 +264,36 @@ public class FightingICE_AI_FDG implements AIInterface {
 				}
 
 				// MCTSによる行動決定
-				Action bestAction = Action.STAND_D_DB_BA;
+				Action bestAction = Action.STAND;
 				Action bestActionHighlight = Action.STAND_D_DB_BA;
 				Action bestActionNormal = Action.STAND_D_DB_BA;
+				Action bestActionHarmless = Action.STAND;
 				
 				if (rootNode == null) {
 					// MCTSの下準備を行う
 					normalMctsPrepare();
 					highlightMctsPrepare();
+					harmlessMctsPrepare();
 				}
 				bestActionNormal = normalMcts.runMcts();
 				bestActionHighlight = highlightMcts.runMcts();
+				bestActionHarmless = harmlessMcts.runMcts();
 				
 				// FDG Edition
 				balFitnessDataLoader.updateData();
 				float rightPunchBF = balFitnessDataLoader.getBalFitnessById(6);
 				float leftPunchBF = balFitnessDataLoader.getBalFitnessById(7);
-				
+				int probabilityNumber = ttsSkillMap.getRandomNumber(100);
 				if (leftPunchBF < rightPunchBF) {
 					// TODO: Change the expression above
 					bestAction = bestActionHighlight;
-				} else {
+				} else if (leftPunchBF > rightPunchBF){
 					bestAction = bestActionNormal;
+				} else {
+					bestAction = bestActionHarmless;					
 				}
+				
+
 				
 				if (ableAction(bestAction)) {
 					commandCenter.commandCall(bestAction.name()); // MCTSで選択された行動を実行する
@@ -284,6 +338,8 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 	@Override
 	public void roundEnd(int x, int y, int frame) {
+		gameState = 4;
+		setTTSParameters();
 		tts.speak("What a Play!");
 	}
 
@@ -314,6 +370,19 @@ public class FightingICE_AI_FDG implements AIInterface {
 				myHighlightActions, oppHighlightActions, playerNumber);
 
 		highlightMcts.createNode(rootNode);
+
+	}
+	
+	public void harmlessMctsPrepare() {
+		setHarmlessMyAction();
+		setNormalOppAction();
+
+		rootNode = new Node(null);
+		FrameData simFrameData = new FrameData(simulatorAheadFrameData);
+		harmlessMcts = new MCTS(rootNode, simFrameData, simulator, myCharacter.getHp(), oppCharacter.getHp(),
+				myHarmlessActions, oppNormalActions, playerNumber);
+
+		harmlessMcts.createNode(rootNode);
 
 	}
 	
@@ -382,6 +451,36 @@ public class FightingICE_AI_FDG implements AIInterface {
 
 	}
 
+	public void setHarmlessMyAction() {
+		myHarmlessActions.clear();
+
+//		int energy = myCharacter.getEnergy();
+
+		for (int i = 0; i < harmlessActionGround.length; i++) {
+			if (Math.abs(myMotion.get(Action.valueOf(harmlessActionGround[i].name()).ordinal())
+					.getAttackStartAddEnergy()) <= 0) {
+				myHarmlessActions.add(normalActionGround[i]);
+			}
+		}
+		
+//		if (myCharacter.getState() == State.AIR) {
+//			for (int i = 0; i < normalActionAir.length; i++) {
+//				if (Math.abs(myMotion.get(Action.valueOf(normalActionAir[i].name()).ordinal())
+//						.getAttackStartAddEnergy()) <= energy) {
+//					myNormalActions.add(normalActionAir[i]);
+//				}
+//			}
+//		} else {
+//			for (int i = 0; i < normalActionGround.length; i++) {
+//				if (Math.abs(myMotion.get(Action.valueOf(normalActionGround[i].name()).ordinal())
+//						.getAttackStartAddEnergy()) <= 0) {
+//					myNormalActions.add(normalActionGround[i]);
+//				}
+//			}
+//		}
+
+	}
+	
 	/** 相手の可能な行動をセットする */
 	public void setNormalOppAction() {
 		oppNormalActions.clear();
@@ -468,6 +567,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 //				 Action.STAND_A, Action.STAND_B, Action.CROUCH_B, Action.STAND_FA,
 //				Action.STAND_FB, Action.CROUCH_FA, Action.CROUCH_FB, Action.STAND_D_DF_FA
 //				};
+		
+		harmlessActionAir = new Action[] {};
+		
+		harmlessActionGround = new Action[] {Action.FORWARD_WALK, Action.DASH,
+				};
 	}
 
 	/**
@@ -486,3 +590,6 @@ public class FightingICE_AI_FDG implements AIInterface {
 		return key;
 	}
 }
+
+
+

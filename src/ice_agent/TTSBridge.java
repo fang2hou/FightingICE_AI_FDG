@@ -30,7 +30,7 @@ public class TTSBridge {
 		mySetting.put("language_code", this.language_code);
 		mySetting.put("gain", String.valueOf(this.gain));
 		mySetting.put("rate", String.valueOf(this.rate));
-		mySetting.put("pitch", String.valueOf(this.rate));
+		mySetting.put("pitch", String.valueOf(this.pitch));
 		mySetting.put("text", text);
 		if (force) {
 			mySetting.put("force", "true");
@@ -58,7 +58,7 @@ public class TTSBridge {
 		mySetting.put("language_code", this.language_code);
 		mySetting.put("gain", String.valueOf(this.gain));
 		mySetting.put("rate", String.valueOf(this.rate));
-		mySetting.put("pitch", String.valueOf(this.rate));
+		mySetting.put("pitch", String.valueOf(this.pitch));
 		mySetting.put("text", text);
 		try {
 			String result = request.post("http://127.0.0.1:1688/icetts/play", mySetting);
