@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.logging.Logger;
@@ -93,6 +94,8 @@ public class FightingICE_AI_FDG implements AIInterface {
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
 	private TTSBridge tts;
+	private UKIBridge uki;
+	
 	boolean healthCommentaryFlag = false;
 	
 	//TTS text generator	
@@ -211,6 +214,18 @@ public class FightingICE_AI_FDG implements AIInterface {
 		tts = new TTSBridge();
 		setTTSParameters();
 		tts.speak(ttsSkillMap.generateBeginCommentary());
+		
+		uki = new UKIBridge();
+		
+		try {
+			if (uki.save("123456 > . !")) {
+				System.out.println("success");
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		return 0;
 	}
 
