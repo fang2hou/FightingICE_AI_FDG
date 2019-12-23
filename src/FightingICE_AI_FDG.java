@@ -1,11 +1,19 @@
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.security.Timestamp;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
-//import dataloader.BalDataLoader;
+import dataloader.BalDataLoader;
 import dataloader.BalFitnessDataLoader;
 import enumerate.Action;
 import enumerate.State;
@@ -24,11 +32,9 @@ import ice_agent.TTSBridge;
 import ice_agent.UKIBridge;
 
 /**
- * MyAI based on Ishii Ryota's Highlight AI
- * 
  * Environment: FightingICE 4.40+
  *
- * @author Zhou Fang
+ * @author Zhou Fang, Junjie Xu
  **/
 public class FightingICE_AI_FDG implements AIInterface {
 
@@ -93,10 +99,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 	// FDG Edition
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
+	private BalDataLoader balDataLoader;
 	private TTSBridge tts;
 	private UKIBridge uki;
 	
-	boolean healthCommentaryFlag = false;
+
 	
 	//TTS text generator	
 	int gameState; // initialize game state, 0 start, 1 early game, 2 mid game, 3 near end game, 4 end game, 5 specific mode
@@ -105,9 +112,21 @@ public class FightingICE_AI_FDG implements AIInterface {
 	String opponentPreviousMove;
 	private LinkedList<String> tempOpponentActionList;	
 	boolean isSpeaking;//check if it's speaking
-	int ttsTimeCount;
+
 	
 	TTSSkillMap ttsSkillMap;
+	
+	//health action
+	long startTime;
+	long currentTime;
+	long countStartTime;
+	long previousHealthActionTime;
+	String niceSkill;
+	//avatar action
+	private Map<String, Integer> avatarSkillMap;
+	
+	//UKI Map
+	private Map<String, String> ukiSkillMap;
 	
 	private void setTTSParameters() {
 		if (gameState == 0) {
@@ -198,11 +217,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 		this.myMotion = gameData.getMotionData(playerNumber);
 		this.oppMotion = gameData.getMotionData(!playerNumber);
 		this.opponentPreviousMove = "Default";
-//		this.balDataLoader = new BalDataLoader("uki/bal.txt");
+		this.balDataLoader = new BalDataLoader("uki/bal.txt");
 		this.balFitnessDataLoader = new BalFitnessDataLoader("uki/fitness.txt");
 		this.tempOpponentActionList = new LinkedList<String>();
 //		logger = new Logger(playerNumber);
-
+	
 
 		// Init
 		setPerformAction();
@@ -214,8 +233,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 		tts = new TTSBridge();
 		setTTSParameters();
 		tts.speak(ttsSkillMap.generateBeginCommentary());
-		
+		startTime = System.currentTimeMillis();
+		previousHealthActionTime = startTime;
 		uki = new UKIBridge();
+		ukiSkillMap = new HashMap<String, String>();
+		initUkiSkillMap();
 		
 		try {
 			if (uki.save("123456 > . !")) {
@@ -228,14 +250,56 @@ public class FightingICE_AI_FDG implements AIInterface {
 		
 		return 0;
 	}
-
+	
 	@Override
 	public void processing() {
 
 		if (canProcessing()) {
 			getOpponentCurrentMoveInformation();
+			
+			
+			//Commentary Generation
 			setTTSParameters();
-			isSpeaking = tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));			
+			currentTime = System.currentTimeMillis();
+			
+
+			
+			// refresh recommendation
+			if (!((currentTime - startTime) < 20 * 1000)) {
+				if (currentTime - previousHealthActionTime > 10 * 1000) {
+					if (balDataLoader.getTotal() < .85) {
+						int i = 0;
+						while (ukiNameToReal(balFitnessDataLoader.getActionNameById(i)) != "Default") {
+							niceSkill = ukiNameToReal(balFitnessDataLoader.getActionNameById(i));							
+						}
+						countStartTime = currentTime;
+						tts.speak(ttsSkillMap.generateHealthQuestion(niceSkill));
+					} else {
+						tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));
+					}
+					
+					previousHealthActionTime = currentTime;
+				}
+				
+				if ((currentTime - countStartTime) < 3 * 1000) {
+					// the action is matched
+					boolean isMatched = opponentCurrentMove.contains(niceSkill);
+					if (isMatched) {
+						// positive
+						tts.speak(ttsSkillMap.generateHealthCommentary(niceSkill, true), true);				
+						// Reset counter
+						countStartTime = currentTime - 3000;
+					}
+				} else {
+					tts.speak(ttsSkillMap.generateHealthCommentary(niceSkill, false), true);
+				}
+
+				
+			} else {
+				tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));
+			}
+			
+
 			//System.out.println(isSpeaking);
 	
 
@@ -309,12 +373,16 @@ public class FightingICE_AI_FDG implements AIInterface {
 						
 					}
 				}
+				//TODO
+				if () {
+					AIState = 0;
+				} else {
+					AIState = 1;
+				}
 				
 				if (AIState == 0) {
-					bestAction = highlightMcts.runMcts();
+					bestAction = normalMcts.runMcts();					
 				} else if (AIState == 1) {
-					bestAction = normalMcts.runMcts();
-				} else if (AIState == 2) {
 					bestAction = harmlessMcts.runMcts();
 				} else {
 					
@@ -341,7 +409,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 			canFC = true;
 			isFcFirst = true;
 		}
-	}
+}
 
 	public boolean ableAction(Action action) {
 		if (action == null)
@@ -550,6 +618,47 @@ public class FightingICE_AI_FDG implements AIInterface {
 				}
 			}
 		}
+	}
+	
+	public void updateAvatar(String action) {
+
+		try {
+			BufferedWriter bw = new BufferedWriter(new FileWriter("D:\\Xu_FDG\\UKI-R2_FDG\\UKI-R2_FDG\\P-Tracker2\\P-Tracker2\\PDA\\avatar\\ai_cmd.txt"));
+			bw.write(action);
+			bw.write(System.getProperty("line.separator"));
+			bw.write(action);
+			bw.close();
+		} catch (IOException e) {
+		}
+	}
+	
+	private void initUkiSkillMap() {
+//		ukiSkillMap.put("STAND_D_DB_BA", "Flying crop");
+//		ukiSkillMap.put("BACK_STEP", "Back step");
+//		ukiSkillMap.put("FORWARD_WALK", "Step forward");
+//		ukiSkillMap.put("DASH", "Lean forward");
+//		ukiSkillMap.put("STAND_GUARD", "Guard");
+//		ukiSkillMap.put("CROUCH_GUARD", "Guard");
+		ukiSkillMap.put("Two Hand Punch", "Throw");//THROW_A
+		ukiSkillMap.put("Step Down + Two Hand Punch", "Great Throw");//THROW_B
+		ukiSkillMap.put("Left Punch", "Punch");//STAND_A
+		ukiSkillMap.put("Left Knee Strike", "Kick");//STAND_B
+		ukiSkillMap.put("Crouch + Left Punch", "Low Punch");//CROUCH_A
+		ukiSkillMap.put("Left kick", "Low Kick");//CROUCH_B
+		ukiSkillMap.put("Right Punch", "Heavy Punch");//STAND_FA
+		ukiSkillMap.put("Right Knee Strike", "Heavy Kick");//STAND_FB
+		ukiSkillMap.put("Crouch + Right Punch", "Low Heavy Punch");//CROUCH_FA
+		ukiSkillMap.put("Right Kick", "Low Heavy Kick");//CROUCH_FB
+		ukiSkillMap.put("STAND_D_DF_FA", "Hadouken");//STAND_D_DF_FA
+//		ukiSkillMap.put("STAND_D_DF_FB", "Super Hadouken");	
+		ukiSkillMap.put("Left uppercut", "Uppercut");//STAND_F_D_DFA
+		ukiSkillMap.put("Knifehand Strike", "Super Uppercut");//STAND_F_D_DFB
+		ukiSkillMap.put("Right swing", "Slide Kick");//STAND_D_DB_BB
+		ukiSkillMap.put("Hadouken", "Ultimate Hadouken");//STAND_D_DF_FC
+	}
+	
+	public String ukiNameToReal(String skillCode) {
+		return ukiSkillMap.getOrDefault(skillCode, "Default");
 	}
 
 	/** 遅れフレーム分進める */
