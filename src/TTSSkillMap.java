@@ -3,10 +3,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
+import dataloader.BalFitnessDataLoader;
+
 public class TTSSkillMap {
 	
 	private Map<String, String> skillMap;
-	
 	//  extracted Commentary
 	
 	String beginCommentary[] = {
@@ -43,12 +44,25 @@ public class TTSSkillMap {
 			"lean backward to move backward",
 			"lean forward for dashing",
 			"jump to make the character jump",
+			"Step back the right foot and jump to jump backward",
+			"Step front the right foot and jump to jump forward",
 			"left punch to execute light punch",
 			"right punch to execute heavy punch",
 			"raise up the left knee to execute light kick",
 			"raise up the right knee to execute heavy kick",
+			"Crouch to make the character crouch",
+			"Step back the right foot and crouch to guard while crouching",
+			"Crouch and left punch to execute weak punch while crouching",
+			"Crouch and right punch to execute weak uppercut while crouching",
 			"left Kick for executing light kick while crouching",
-			"right kick to execute heavy kick while crouching. This skill can take the opponent down"
+			"right kick to execute heavy kick while crouching. This skill can take the opponent down",
+			"Two-handed punch while the opponent is close to throw the opponent",
+			"Step back the right foot and two-handed punch while the opponent is close to heavily throw the opponent",
+			"Right swing from back to front to execute sliding attack. This skill can take the opponent down",
+			"This skill can take the opponent down",
+			"Right-handed knifehand strike (karate chop) to execute forward flying attack",
+			"Do Hadouken on your right side to execute projectile attack"
+			
 			
 			
 			
@@ -209,12 +223,13 @@ public class TTSSkillMap {
 	 * @return complete Commentary
 	 */
 	
-	public String generateNormalCommentary(String actionRealName) {
+	public String generateNormalCommentary(String actionRealName, int maxVarId) {
 		if (actionRealName == "Default") {
 			if (getRandomNumber(100) < 30) {
 				return chat[getRandomNumber(chat.length)];				
 			} else {
-				return forwardActionInstruction[getRandomNumber(forwardActionInstruction.length)] + " " + actionInstruction[getRandomNumber(actionInstruction.length)];
+				//TODO add improve variability
+				return forwardActionInstruction[getRandomNumber(forwardActionInstruction.length)] + " " + actionInstruction[maxVarId];
 			}
 
 		} else {

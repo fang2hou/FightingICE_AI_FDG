@@ -9,12 +9,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Random;
 import java.util.logging.Logger;
 
 import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
 import dataloader.BalDataLoader;
 import dataloader.BalFitnessDataLoader;
+import dataloader.FzReader;
 import enumerate.Action;
 import enumerate.State;
 import mcts.HighlightMCTS;
@@ -96,7 +98,11 @@ public class FightingICE_AI_FDG implements AIInterface {
 	
 	Logger logger;
 	
-	// FDG Edition
+	//MiG Version
+	float pdaProbability;
+	boolean pdaOn;
+	
+	// FDG Version
 //	private BalDataLoader balDataLoader;
 	private BalFitnessDataLoader balFitnessDataLoader;
 	private BalDataLoader balDataLoader;
@@ -112,21 +118,28 @@ public class FightingICE_AI_FDG implements AIInterface {
 	String opponentPreviousMove;
 	private LinkedList<String> tempOpponentActionList;	
 	boolean isSpeaking;//check if it's speaking
-
+	float balancednessFitness;
 	
 	TTSSkillMap ttsSkillMap;
 	
+	String opponentActionPath;
+	String opponentCurrentAction;
+	String opponentPreviousAction;
 	//health action
-	long startTime;
-	long currentTime;
-	long countStartTime;
-	long previousHealthActionTime;
-	String niceSkill;
+//	long startTime;
+//	long currentTime;
+//	long countStartTime;
+//	long previousHealthActionTime;
+//	String niceSkill;
+	
+	
+	
 	//avatar action
 	private Map<String, Integer> avatarSkillMap;
 	
 	//UKI Map
 	private Map<String, String> ukiSkillMap;
+	private Map<String, Integer> realToUkiMap;	
 	
 	private void setTTSParameters() {
 		if (gameState == 0) {
@@ -135,8 +148,16 @@ public class FightingICE_AI_FDG implements AIInterface {
 			tts.pitch = 2.0f;
 			gameState = 1;
 		} else if (gameState == 1) {
-			tts.gain = 1.0f;
-			tts.rate = 1.25f;
+			if (pdaOn) {
+				tts.gain = 1.0f + (pdaProbability - 0.5f) * 5.0f;
+				tts.rate = 1.25f - (pdaProbability - 0.5f);	
+				tts.pitch = 1.0f + (pdaProbability - 0.5f) * 3.0f;
+			}
+			else {
+				tts.gain = 1.0f;
+				tts.rate = 1.25f;				
+			}
+
 			if (opponentCurrentMove.contains("Default")) {				
 				tts.pitch = -4.0f;				
 			} else {
@@ -233,20 +254,32 @@ public class FightingICE_AI_FDG implements AIInterface {
 		tts = new TTSBridge();
 		setTTSParameters();
 		tts.speak(ttsSkillMap.generateBeginCommentary());
-		startTime = System.currentTimeMillis();
-		previousHealthActionTime = startTime;
+//		startTime = System.currentTimeMillis();
+//		previousHealthActionTime = startTime;
 		uki = new UKIBridge();
 		ukiSkillMap = new HashMap<String, String>();
+		realToUkiMap = new HashMap<String, Integer>();		
 		initUkiSkillMap();
+		initRealUkiSkillMap();
+
 		
-		try {
-			if (uki.save("123456 > . !")) {
-				System.out.println("success");
-			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		
+		
+		//PDA init
+		opponentActionPath = "C:\\FTG\\CMD1.txt";
+		opponentCurrentAction = "STAND";
+		opponentPreviousAction = "STAND";
+		pdaProbability = 1.0f;
+		pdaOn = true;
+		balancednessFitness = 1.0f;
+//		try {
+//			if (uki.save("123456 > . !")) {
+//				System.out.println("success");
+//			}
+//		} catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
 		
 		return 0;
 	}
@@ -260,44 +293,63 @@ public class FightingICE_AI_FDG implements AIInterface {
 			
 			//Commentary Generation
 			setTTSParameters();
-			currentTime = System.currentTimeMillis();
+			//currentTime = System.currentTimeMillis();
 			
-
 			
-			// refresh recommendation
-			if (!((currentTime - startTime) < 20 * 1000)) {
-				if (currentTime - previousHealthActionTime > 10 * 1000) {
-					if (balDataLoader.getTotal() < .85) {
-						int i = 0;
-						while (ukiNameToReal(balFitnessDataLoader.getActionNameById(i)) != "Default") {
-							niceSkill = ukiNameToReal(balFitnessDataLoader.getActionNameById(i));							
-						}
-						countStartTime = currentTime;
-						tts.speak(ttsSkillMap.generateHealthQuestion(niceSkill));
-					} else {
-						tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));
-					}
-					
-					previousHealthActionTime = currentTime;
-				}
-				
-				if ((currentTime - countStartTime) < 3 * 1000) {
-					// the action is matched
-					boolean isMatched = opponentCurrentMove.contains(niceSkill);
-					if (isMatched) {
-						// positive
-						tts.speak(ttsSkillMap.generateHealthCommentary(niceSkill, true), true);				
-						// Reset counter
-						countStartTime = currentTime - 3000;
-					}
-				} else {
-					tts.speak(ttsSkillMap.generateHealthCommentary(niceSkill, false), true);
-				}
-
+			opponentCurrentAction = FzReader.readFile(opponentActionPath);
+			opponentCurrentAction = opponentCurrentAction.replaceAll("\r\n", "");
+			System.out.println(opponentCurrentAction);
+			if (opponentCurrentAction != opponentPreviousAction) {
+				//get balanceFitness of that action
+				balancednessFitness = getBalancednessFitness(opponentCurrentAction);
+				opponentPreviousAction = opponentCurrentAction;
+			}
+			
+			if (pdaOn && balancednessFitness != -1.0f && balancednessFitness != 0.0f) {
+				pdaProbability = balancednessFitness;
+				System.out.println("pda" + pdaProbability);
+			} else if (pdaProbability == -1.0f){
 				
 			} else {
-				tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));
+				pdaProbability = 0.0f;
 			}
+			
+			tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove,balFitnessDataLoader.getMaxVarActionId()));
+			
+			// refresh recommendation
+//			if (!((currentTime - startTime) < 20 * 1000)) {
+//				if (currentTime - previousHealthActionTime > 10 * 1000) {
+//					if (balDataLoader.getTotal() < .85) {
+//						int i = 0;
+//						while (ukiNameToReal(balFitnessDataLoader.getActionNameById(i)) != "Default") {
+//							niceSkill = ukiNameToReal(balFitnessDataLoader.getActionNameById(i));							
+//						}
+//						countStartTime = currentTime;
+//						tts.speak(ttsSkillMap.generateHealthQuestion(niceSkill));
+//					} else {
+//						tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));
+//					}
+//					
+//					previousHealthActionTime = currentTime;
+//				}
+//				
+//				if ((currentTime - countStartTime) < 3 * 1000) {
+//					// the action is matched
+//					boolean isMatched = opponentCurrentMove.contains(niceSkill);
+//					if (isMatched) {
+//						// positive
+//						tts.speak(ttsSkillMap.generateHealthCommentary(niceSkill, true), true);				
+//						// Reset counter
+//						countStartTime = currentTime - 3000;
+//					}
+//				} else {
+//					tts.speak(ttsSkillMap.generateHealthCommentary(niceSkill, false), true);
+//				}
+//
+//				
+//			} else {
+//				tts.speak(ttsSkillMap.generateNormalCommentary(opponentCurrentMove));
+//			}
 			
 
 			//System.out.println(isSpeaking);
@@ -359,31 +411,35 @@ public class FightingICE_AI_FDG implements AIInterface {
 				balFitnessDataLoader.updateData();
 				float rightPunchBF = balFitnessDataLoader.getBalFitnessById(6);
 				float leftPunchBF = balFitnessDataLoader.getBalFitnessById(7);
-				int probabilityNumber = ttsSkillMap.getRandomNumber(100);
 				
-				if (rootNode == null) {
-					// MCTSの下準備を行う
-					if (AIState == 0) {
-						highlightMctsPrepare();
-					} else if (AIState == 1) {
-						normalMctsPrepare();
-					} else if (AIState == 2) {
-						harmlessMctsPrepare();
-					} else {
-						
-					}
-				}
+				
+				Random rand = new Random();
+				float probabilityNumber = rand.nextFloat();
+				System.out.println("randomprob=" + probabilityNumber);
 				//TODO
-				if () {
+				if (probabilityNumber < pdaProbability) {
 					AIState = 0;
 				} else {
 					AIState = 1;
 				}
 				
+				
+				if (rootNode == null) {
+					// MCTSの下準備を行う
+					if (AIState == 0) {
+						normalMctsPrepare();
+					} else if (AIState == 1) {
+						//harmlessMctsPrepare();
+					} else {
+						
+					}
+				}
+
+				
 				if (AIState == 0) {
 					bestAction = normalMcts.runMcts();					
 				} else if (AIState == 1) {
-					bestAction = harmlessMcts.runMcts();
+					commandCenter.commandCall("DASH");
 				} else {
 					
 				}
@@ -639,7 +695,7 @@ public class FightingICE_AI_FDG implements AIInterface {
 //		ukiSkillMap.put("DASH", "Lean forward");
 //		ukiSkillMap.put("STAND_GUARD", "Guard");
 //		ukiSkillMap.put("CROUCH_GUARD", "Guard");
-		ukiSkillMap.put("Two Hand Punch", "Throw");//THROW_A
+		ukiSkillMap.put("Throw", "Two Hand Punch");//THROW_A
 		ukiSkillMap.put("Step Down + Two Hand Punch", "Great Throw");//THROW_B
 		ukiSkillMap.put("Left Punch", "Punch");//STAND_A
 		ukiSkillMap.put("Left Knee Strike", "Kick");//STAND_B
@@ -654,12 +710,57 @@ public class FightingICE_AI_FDG implements AIInterface {
 		ukiSkillMap.put("Left uppercut", "Uppercut");//STAND_F_D_DFA
 		ukiSkillMap.put("Knifehand Strike", "Super Uppercut");//STAND_F_D_DFB
 		ukiSkillMap.put("Right swing", "Slide Kick");//STAND_D_DB_BB
-		ukiSkillMap.put("Hadouken", "Ultimate Hadouken");//STAND_D_DF_FC
+//		ukiSkillMap.put("Hadouken", "Ultimate Hadouken");//STAND_D_DF_FC
 	}
+	
+	private void initRealUkiSkillMap() {
+		realToUkiMap.put("STAND_A", 7);
+		realToUkiMap.put("STAND_FA", 8);
+		realToUkiMap.put("STAND_B",9);
+		realToUkiMap.put("STAND_FB",10);
+		realToUkiMap.put("CROUCH",11);
+		realToUkiMap.put("CROUCH_A", 13);
+		realToUkiMap.put("CROUCH_FA", 14);
+		realToUkiMap.put("CROUCH_B",15);
+		realToUkiMap.put("CROUCH_FB",16);
+		realToUkiMap.put("THROW_A",17);
+		realToUkiMap.put("THROW_B",18);
+		realToUkiMap.put("STAND_D_DB_BB",19);
+		realToUkiMap.put("STAND_F_D_DFA",20);
+		realToUkiMap.put("STAND_F_D_DFB", 21);
+		realToUkiMap.put("STAND_D_DF_FA",22);
+		
+	}
+	
+	
 	
 	public String ukiNameToReal(String skillCode) {
 		return ukiSkillMap.getOrDefault(skillCode, "Default");
 	}
+	
+	public float getBalancednessFitness(String currentSkill) {
+		System.out.println(currentSkill);
+		int skillUkiName = realToUkiMap.getOrDefault(currentSkill, 0);
+		System.out.println(skillUkiName);
+		if (skillUkiName == 0) {
+			return -1.0f;
+		} else {
+			return balFitnessDataLoader.getBalFitnessById(skillUkiName);			
+		}
+
+	}
+	
+//	public String getMaxVarAction() {
+//		float maxVarValue = -100.0f;
+//		String maxVarActionName = "Default";
+//		for (int count = 0; count < 26; count++) {
+//			if (balFitnessDataLoader.getvarDataById(count) > maxVarValue) {
+//				maxVarValue = balFitnessDataLoader.getvarDataById(count);
+//				maxVarActionName = balFitnessDataLoader.getActionNameById(count);
+//			}
+//		}		
+//		return maxVarActionName;
+//	}
 
 	/** 遅れフレーム分進める */
 	private void aheadFrame() {
